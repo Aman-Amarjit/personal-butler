@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Lazy-loaded game agent (only imported when needed)
 _game_agent = None
+_auto_player = None
+_screen_vision = None
 
 def _get_game_agent():
     global _game_agent
@@ -29,6 +31,26 @@ def _get_game_agent():
         except Exception as exc:
             logger.warning(f"Game agent unavailable: {exc}")
     return _game_agent
+
+def _get_auto_player():
+    global _auto_player
+    if _auto_player is None:
+        try:
+            from src.gaming.autonomous_player import AutonomousPlayer
+            _auto_player = AutonomousPlayer()
+        except Exception as exc:
+            logger.warning(f"Autonomous player unavailable: {exc}")
+    return _auto_player
+
+def _get_screen_vision():
+    global _screen_vision
+    if _screen_vision is None:
+        try:
+            from src.gaming.screen_vision import ScreenVision
+            _screen_vision = ScreenVision()
+        except Exception as exc:
+            logger.warning(f"Screen vision unavailable: {exc}")
+    return _screen_vision
 
 
 class ExecutionStatus(Enum):
@@ -278,57 +300,102 @@ class CommandExecutor:
             )
 
     def _execute_game_control(self, command: Command) -> ExecutionResult:
-        """Route game control commands to the GameAgent."""
+        """Route game control commands to the GameAgent, ScreenVision, or AutonomousPlayer."""
         try:
-            agent = _get_game_agent()
-            if agent is None:
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    output="",
-                    error="Game agent not available",
-                )
-
             entities = command.entities
             game_cmd = entities.get("game_command", command.action)
 
-            # Force profile switch
+            # ── Autonomous play ───────────────────────────────────────────
+            if "auto_play" in entities:
+                return self._handle_auto_play(entities["auto_play"])
+
+            # ── Screen vision query ───────────────────────────────────────
+            if "vision_query" in entities:
+                return self._handle_vision_query(entities["vision_query"])
+
+            # ── Force profile switch ──────────────────────────────────────
             if "force_game" in entities:
+                agent = _get_game_agent()
+                if agent is None:
+                    return ExecutionResult(status=ExecutionStatus.FAILED,
+                                          output="", error="Game agent not available")
                 game_name = entities["force_game"]
                 ok = agent.force_profile(game_name)
                 if ok:
-                    return ExecutionResult(
-                        status=ExecutionStatus.SUCCESS,
-                        output=f"Switched to game profile: {game_name}",
-                    )
-                return ExecutionResult(
-                    status=ExecutionStatus.FAILED,
-                    output="",
-                    error=f"Unknown game profile: {game_name}",
-                )
+                    return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                          output=f"Switched to game profile: {game_name}")
+                return ExecutionResult(status=ExecutionStatus.FAILED, output="",
+                                       error=f"Unknown game profile: {game_name}")
 
-            # Direct key control
+            # ── Direct key control ────────────────────────────────────────
             if "key" in entities:
-                key = entities["key"]
+                agent = _get_game_agent()
+                if agent is None:
+                    return ExecutionResult(status=ExecutionStatus.FAILED,
+                                          output="", error="Game agent not available")
+                key    = entities["key"]
                 action = entities.get("key_action", "press")
                 result = agent.execute_key(key, hold=(action == "hold"))
                 return ExecutionResult(status=ExecutionStatus.SUCCESS, output=result)
 
-            # Voice command → macro
-            result = agent.handle_voice_command(game_cmd)
-            if result:
-                return ExecutionResult(status=ExecutionStatus.SUCCESS, output=result)
+            # ── Voice command → macro ─────────────────────────────────────
+            agent = _get_game_agent()
+            if agent:
+                result = agent.handle_voice_command(game_cmd)
+                if result:
+                    return ExecutionResult(status=ExecutionStatus.SUCCESS, output=result)
 
-            return ExecutionResult(
-                status=ExecutionStatus.INVALID_COMMAND,
-                output="",
-                error=f"No game action matched: '{game_cmd}'",
-            )
+            return ExecutionResult(status=ExecutionStatus.INVALID_COMMAND, output="",
+                                   error=f"No game action matched: '{game_cmd}'")
 
         except Exception as exc:
             logger.error(f"Game control error: {exc}")
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED, output="", error=str(exc)
-            )
+            return ExecutionResult(status=ExecutionStatus.FAILED, output="", error=str(exc))
+
+    def _handle_vision_query(self, query: str) -> ExecutionResult:
+        """Answer a question about the current screen."""
+        vision = _get_screen_vision()
+        if vision is None:
+            return ExecutionResult(status=ExecutionStatus.FAILED, output="",
+                                   error="Screen vision not available")
+        try:
+            lower = query.lower()
+            if "what game" in lower:
+                answer = vision.what_game()
+            elif "read" in lower or "text" in lower:
+                answer = vision.read_text()
+            elif "game state" in lower or "what should" in lower:
+                answer = vision.game_state()
+            else:
+                answer = vision.ask(query)
+            return ExecutionResult(status=ExecutionStatus.SUCCESS, output=answer)
+        except Exception as exc:
+            return ExecutionResult(status=ExecutionStatus.FAILED, output="", error=str(exc))
+
+    def _handle_auto_play(self, action: str) -> ExecutionResult:
+        """Start, stop, pause, or resume autonomous play."""
+        player = _get_auto_player()
+        if player is None:
+            return ExecutionResult(status=ExecutionStatus.FAILED, output="",
+                                   error="Autonomous player not available")
+        if action == "start":
+            player.start()
+            return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                   output="Autonomous play started. I'll play for you!")
+        elif action == "stop":
+            player.stop()
+            return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                   output="Autonomous play stopped.")
+        elif action == "pause":
+            player.pause()
+            return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                   output="Autonomous play paused.")
+        elif action == "resume":
+            player.resume()
+            return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                   output="Autonomous play resumed.")
+        return ExecutionResult(status=ExecutionStatus.INVALID_COMMAND, output="",
+                               error=f"Unknown auto_play action: {action}")
 
     def confirm_execution(self, command: Command) -> ExecutionResult:
         """

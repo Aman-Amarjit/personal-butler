@@ -76,6 +76,13 @@ class CommandInterpreter:
                 "ultimate", "recall", "buy", "inventory", "hotbar",
                 "walk", "strafe", "stop moving", "press key", "hold key",
                 "release key", "play game", "game mode", "force profile",
+                # Screen vision
+                "what do you see", "what's on screen", "describe screen",
+                "what game", "read screen", "look at screen", "screen",
+                "what's happening", "game state", "what should i do",
+                # Autonomous play
+                "play for me", "play by yourself", "auto play", "play automatically",
+                "start playing", "stop playing", "pause playing", "resume playing",
             ],
         }
 
@@ -144,8 +151,17 @@ class CommandInterpreter:
             )
 
     def _classify_intent(self, text: str) -> CommandIntent:
-        """Classify command intent"""
+        """Classify command intent — game_control checked first to avoid false matches."""
+        # Game control must be checked before information_retrieval because
+        # vision triggers like "what do you see" contain "what"
+        game_keywords = self.intent_patterns[CommandIntent.GAME_CONTROL]
+        for keyword in game_keywords:
+            if keyword in text:
+                return CommandIntent.GAME_CONTROL
+
         for intent, keywords in self.intent_patterns.items():
+            if intent == CommandIntent.GAME_CONTROL:
+                continue
             for keyword in keywords:
                 if keyword in text:
                     return intent
@@ -200,6 +216,30 @@ class CommandInterpreter:
                 if kw in text:
                     entities["force_game"] = text.split(kw)[-1].strip()
                     break
+
+            # Detect screen vision requests
+            vision_triggers = (
+                "what do you see", "what's on screen", "describe screen",
+                "what game", "read screen", "look at screen",
+                "what's happening", "game state", "what should i do",
+                "screen",
+            )
+            for trigger in vision_triggers:
+                if trigger in text:
+                    entities["vision_query"] = text
+                    break
+
+            # Detect autonomous play commands
+            if any(w in text for w in ("play for me", "play by yourself",
+                                        "auto play", "play automatically",
+                                        "start playing")):
+                entities["auto_play"] = "start"
+            elif any(w in text for w in ("stop playing", "stop auto")):
+                entities["auto_play"] = "stop"
+            elif "pause playing" in text:
+                entities["auto_play"] = "pause"
+            elif "resume playing" in text:
+                entities["auto_play"] = "resume"
 
         return entities
 

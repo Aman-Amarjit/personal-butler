@@ -36,6 +36,11 @@ env/
 .DS_Store
 Thumbs.db
 
+# Installers / binaries
+*.exe
+*.msi
+*.dmg
+
 # Project specific
 *.db
 *.sqlite
