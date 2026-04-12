@@ -66,6 +66,11 @@ class ResponseGenerator:
                 "Performing file operation: {operation}.",
                 "Executing file operation: {operation}.",
             ],
+            CommandIntent.GAME_CONTROL: [
+                "Done.",
+                "Executed.",
+                "On it.",
+            ],
             CommandIntent.UNKNOWN: [
                 "I'm not sure what you mean. Could you rephrase that?",
                 "I didn't understand that. Could you try again?",

@@ -21,6 +21,7 @@ class CommandIntent(Enum):
     INFORMATION_RETRIEVAL = "information_retrieval"
     TASK_AUTOMATION = "task_automation"
     FILE_OPERATION = "file_operation"
+    GAME_CONTROL = "game_control"
     UNKNOWN = "unknown"
 
 
@@ -68,7 +69,14 @@ class CommandInterpreter:
             ],
             CommandIntent.TASK_AUTOMATION: [
                 "schedule", "remind", "set", "create", "add"
-            ]
+            ],
+            CommandIntent.GAME_CONTROL: [
+                "jump", "crouch", "reload", "sprint", "attack", "shoot",
+                "build", "use", "dodge", "block", "cast", "ability",
+                "ultimate", "recall", "buy", "inventory", "hotbar",
+                "walk", "strafe", "stop moving", "press key", "hold key",
+                "release key", "play game", "game mode", "force profile",
+            ],
         }
 
         # Sensitive commands requiring confirmation
@@ -175,6 +183,23 @@ class CommandInterpreter:
         elif intent == CommandIntent.INFORMATION_RETRIEVAL:
             # Extract query
             entities["query"] = text
+
+        elif intent == CommandIntent.GAME_CONTROL:
+            # Pass the full text so the GameAgent can fuzzy-match it
+            entities["game_command"] = text
+            # Detect explicit key press/hold requests
+            for kw in ("press key", "hold key", "release key"):
+                if kw in text:
+                    parts = text.split(kw)
+                    if len(parts) > 1:
+                        entities["key"] = parts[1].strip().split()[0]
+                        entities["key_action"] = kw.split()[0]  # press/hold/release
+                    break
+            # Detect force profile requests ("play as minecraft", "game mode fortnite")
+            for kw in ("play as", "game mode", "force profile", "switch to game"):
+                if kw in text:
+                    entities["force_game"] = text.split(kw)[-1].strip()
+                    break
 
         return entities
 

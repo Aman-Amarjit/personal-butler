@@ -14,8 +14,21 @@ from enum import Enum
 
 from .command_interpreter import Command, CommandIntent
 
-
 logger = logging.getLogger(__name__)
+
+# Lazy-loaded game agent (only imported when needed)
+_game_agent = None
+
+def _get_game_agent():
+    global _game_agent
+    if _game_agent is None:
+        try:
+            from src.gaming.game_agent import GameAgent
+            _game_agent = GameAgent()
+            _game_agent.start()
+        except Exception as exc:
+            logger.warning(f"Game agent unavailable: {exc}")
+    return _game_agent
 
 
 class ExecutionStatus(Enum):
@@ -103,6 +116,9 @@ class CommandExecutor:
 
             elif command.intent == CommandIntent.FILE_OPERATION:
                 return self._execute_file_operation(command)
+
+            elif command.intent == CommandIntent.GAME_CONTROL:
+                return self._execute_game_control(command)
 
             else:
                 return ExecutionResult(
@@ -259,6 +275,59 @@ class CommandExecutor:
                 status=ExecutionStatus.FAILED,
                 output="",
                 error=str(e)
+            )
+
+    def _execute_game_control(self, command: Command) -> ExecutionResult:
+        """Route game control commands to the GameAgent."""
+        try:
+            agent = _get_game_agent()
+            if agent is None:
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    output="",
+                    error="Game agent not available",
+                )
+
+            entities = command.entities
+            game_cmd = entities.get("game_command", command.action)
+
+            # Force profile switch
+            if "force_game" in entities:
+                game_name = entities["force_game"]
+                ok = agent.force_profile(game_name)
+                if ok:
+                    return ExecutionResult(
+                        status=ExecutionStatus.SUCCESS,
+                        output=f"Switched to game profile: {game_name}",
+                    )
+                return ExecutionResult(
+                    status=ExecutionStatus.FAILED,
+                    output="",
+                    error=f"Unknown game profile: {game_name}",
+                )
+
+            # Direct key control
+            if "key" in entities:
+                key = entities["key"]
+                action = entities.get("key_action", "press")
+                result = agent.execute_key(key, hold=(action == "hold"))
+                return ExecutionResult(status=ExecutionStatus.SUCCESS, output=result)
+
+            # Voice command → macro
+            result = agent.handle_voice_command(game_cmd)
+            if result:
+                return ExecutionResult(status=ExecutionStatus.SUCCESS, output=result)
+
+            return ExecutionResult(
+                status=ExecutionStatus.INVALID_COMMAND,
+                output="",
+                error=f"No game action matched: '{game_cmd}'",
+            )
+
+        except Exception as exc:
+            logger.error(f"Game control error: {exc}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED, output="", error=str(exc)
             )
 
     def confirm_execution(self, command: Command) -> ExecutionResult:
