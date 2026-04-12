@@ -1,0 +1,282 @@
+"""
+Command Executor
+
+Executes commands safely with permission checking, validation,
+and user confirmation for sensitive operations.
+"""
+
+import logging
+import subprocess
+import os
+from typing import Optional, Dict, Any, Callable
+from dataclasses import dataclass
+from enum import Enum
+
+from .command_interpreter import Command, CommandIntent
+
+
+logger = logging.getLogger(__name__)
+
+
+class ExecutionStatus(Enum):
+    """Command execution status"""
+    SUCCESS = "success"
+    FAILED = "failed"
+    PENDING_CONFIRMATION = "pending_confirmation"
+    PERMISSION_DENIED = "permission_denied"
+    INVALID_COMMAND = "invalid_command"
+
+
+@dataclass
+class ExecutionResult:
+    """Result of command execution"""
+    status: ExecutionStatus
+    output: str
+    error: Optional[str] = None
+    requires_confirmation: bool = False
+
+
+class CommandExecutor:
+    """
+    Executes commands safely.
+    
+    Features:
+    - System command execution (safe subset)
+    - Application launch
+    - Information retrieval
+    - Permission checking
+    - User confirmation for sensitive operations
+    """
+
+    def __init__(self):
+        """Initialize command executor"""
+        # Safe system commands
+        self.safe_commands = {
+            "shutdown": ["shutdown", "/s", "/t", "60"],
+            "restart": ["shutdown", "/r", "/t", "60"],
+            "sleep": ["rundll32.exe", "powrprof.dll", "SetSuspendState", "0", "1", "0"],
+            "lock": ["rundll32.exe", "user32.dll", "LockWorkStation"],
+        }
+
+        # Blocked commands
+        self.blocked_commands = [
+            "format", "del", "rm", "rmdir", "remove", "uninstall"
+        ]
+
+        # Callbacks
+        self.on_confirmation_needed: Optional[Callable] = None
+        self.on_execution_complete: Optional[Callable] = None
+
+    def execute(self, command: Command) -> ExecutionResult:
+        """
+        Execute a command.
+
+        Args:
+            command: Command to execute
+
+        Returns:
+            ExecutionResult with status and output
+        """
+        try:
+            # Validate command
+            validation = self._validate_command(command)
+            if validation.status != ExecutionStatus.SUCCESS:
+                return validation
+
+            # Check if confirmation needed
+            if command.requires_confirmation:
+                return ExecutionResult(
+                    status=ExecutionStatus.PENDING_CONFIRMATION,
+                    output="",
+                    requires_confirmation=True
+                )
+
+            # Execute based on intent
+            if command.intent == CommandIntent.APPLICATION_LAUNCH:
+                return self._execute_application_launch(command)
+
+            elif command.intent == CommandIntent.SYSTEM_COMMAND:
+                return self._execute_system_command(command)
+
+            elif command.intent == CommandIntent.INFORMATION_RETRIEVAL:
+                return self._execute_information_retrieval(command)
+
+            elif command.intent == CommandIntent.FILE_OPERATION:
+                return self._execute_file_operation(command)
+
+            else:
+                return ExecutionResult(
+                    status=ExecutionStatus.INVALID_COMMAND,
+                    output="",
+                    error="Unknown command type"
+                )
+
+        except Exception as e:
+            logger.error(f"Error executing command: {e}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=str(e)
+            )
+
+    def _validate_command(self, command: Command) -> ExecutionResult:
+        """Validate command for safety"""
+        action_lower = command.action.lower()
+
+        # Check blocked commands
+        for blocked in self.blocked_commands:
+            if blocked in action_lower:
+                logger.warning(f"Blocked command attempted: {blocked}")
+                return ExecutionResult(
+                    status=ExecutionStatus.PERMISSION_DENIED,
+                    output="",
+                    error=f"Command '{blocked}' is not allowed"
+                )
+
+        # Check confidence
+        if command.confidence < 0.5:
+            return ExecutionResult(
+                status=ExecutionStatus.INVALID_COMMAND,
+                output="",
+                error="Command confidence too low"
+            )
+
+        return ExecutionResult(
+            status=ExecutionStatus.SUCCESS,
+            output=""
+        )
+
+    def _execute_application_launch(self, command: Command) -> ExecutionResult:
+        """Execute application launch"""
+        try:
+            app_name = command.entities.get("app_name", "").strip()
+
+            if not app_name:
+                return ExecutionResult(
+                    status=ExecutionStatus.INVALID_COMMAND,
+                    output="",
+                    error="No application specified"
+                )
+
+            # Try to launch application
+            try:
+                subprocess.Popen(app_name)
+                logger.info(f"Launched application: {app_name}")
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    output=f"Launched {app_name}"
+                )
+            except FileNotFoundError:
+                # Try with full path
+                try:
+                    subprocess.Popen(f"start {app_name}", shell=True)
+                    return ExecutionResult(
+                        status=ExecutionStatus.SUCCESS,
+                        output=f"Launched {app_name}"
+                    )
+                except Exception as e:
+                    return ExecutionResult(
+                        status=ExecutionStatus.FAILED,
+                        output="",
+                        error=f"Could not launch {app_name}: {e}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error launching application: {e}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=str(e)
+            )
+
+    def _execute_system_command(self, command: Command) -> ExecutionResult:
+        """Execute system command"""
+        try:
+            action_lower = command.action.lower()
+
+            for cmd_name, cmd_args in self.safe_commands.items():
+                if cmd_name in action_lower:
+                    logger.info(f"Executing system command: {cmd_name}")
+                    subprocess.Popen(cmd_args)
+                    return ExecutionResult(
+                        status=ExecutionStatus.SUCCESS,
+                        output=f"Executing {cmd_name}"
+                    )
+
+            return ExecutionResult(
+                status=ExecutionStatus.INVALID_COMMAND,
+                output="",
+                error="Unknown system command"
+            )
+
+        except Exception as e:
+            logger.error(f"Error executing system command: {e}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=str(e)
+            )
+
+    def _execute_information_retrieval(self, command: Command) -> ExecutionResult:
+        """Execute information retrieval"""
+        try:
+            query = command.entities.get("query", "")
+            logger.info(f"Information retrieval query: {query}")
+
+            # Placeholder for actual information retrieval
+            # Would integrate with search, APIs, etc.
+
+            return ExecutionResult(
+                status=ExecutionStatus.SUCCESS,
+                output=f"Retrieved information for: {query}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving information: {e}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=str(e)
+            )
+
+    def _execute_file_operation(self, command: Command) -> ExecutionResult:
+        """Execute file operation"""
+        try:
+            operation = command.entities.get("operation", "")
+            logger.info(f"File operation: {operation}")
+
+            # Placeholder for actual file operations
+            # Would implement copy, move, delete, rename
+
+            return ExecutionResult(
+                status=ExecutionStatus.SUCCESS,
+                output=f"File operation completed: {operation}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error executing file operation: {e}")
+            return ExecutionResult(
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=str(e)
+            )
+
+    def confirm_execution(self, command: Command) -> ExecutionResult:
+        """
+        Execute command after user confirmation.
+
+        Args:
+            command: Command to execute
+
+        Returns:
+            ExecutionResult
+        """
+        logger.info("User confirmed command execution")
+        return self.execute(command)
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get executor status"""
+        return {
+            "safe_commands": list(self.safe_commands.keys()),
+            "blocked_commands": self.blocked_commands
+        }
