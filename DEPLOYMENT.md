@@ -1,249 +1,86 @@
 # JARVIS AI Assistant - Deployment Checklist
 
-## Pre-Deployment Verification
+## Pre-Release Verification
 
-### Code Quality
-- [x] All tests passing (65+ tests)
-- [x] Code coverage >80% (85%+)
-- [x] No critical bugs
-- [x] No security vulnerabilities
-- [x] Code follows PEP 8 style guide
-- [x] All docstrings present
-- [x] Type hints on all functions
-
-### Documentation
-- [x] README.md complete
-- [x] QUICKSTART.md complete
-- [x] DEVELOPMENT.md complete
-- [x] API documentation complete
-- [x] Troubleshooting guide complete
-- [x] Performance guide complete
-- [x] Release notes complete
-
-### Testing
-- [x] Unit tests (65+ tests)
-- [x] Integration tests
-- [x] Performance tests
-- [x] Security tests
-- [x] Error handling tests
-- [x] Edge case tests
-
-### Security
-- [x] Encryption implemented (AES-256)
-- [x] Audit logging implemented
-- [x] Access control implemented
-- [x] Loop detection implemented
-- [x] No hardcoded secrets
-- [x] No SQL injection vulnerabilities
-- [x] No XSS vulnerabilities
-
-### Performance
-- [x] CPU usage <5% (standby)
-- [x] Memory usage <4GB
-- [x] Wake word latency <2s
-- [x] Command processing <5s
-- [x] Rendering at 60 FPS
-- [x] No memory leaks
-- [x] No performance regressions
+- [ ] All unit tests pass: `python -m pytest tests/ -v`
+- [ ] Code coverage > 80%: `python -m pytest tests/ --cov=src`
+- [ ] No critical security vulnerabilities in dependencies
+- [ ] config.json has `"environment": "production"` and `"debug": false`
+- [ ] All sensitive data uses EncryptionManager
+- [ ] Audit logging is enabled
+- [ ] Circuit breaker limits are configured
 
 ## Deployment Steps
 
-### 1. Pre-Release (Day 1)
+### 1. Prepare Environment
 
 ```bash
-# Verify all tests pass
-pytest tests/ -v --cov=src
-
-# Check code quality
-pylint src/ --disable=all --enable=E,F
-
-# Verify documentation
-ls -la *.md
-
-# Check git status
-git status
+git clone https://github.com/Aman-Amarjit/personal-butler.git
+cd personal-butler
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-### 2. Version Tagging (Day 1)
+### 2. Configure Production
 
 ```bash
-# Create version tag
-git tag -a v0.1.0 -m "Phase 1 MVP Release"
-
-# Verify tag
-git tag -l
-
-# Push tag
-git push origin v0.1.0
+set JARVIS_ENV=production
 ```
 
-### 3. Release on GitHub (Day 1)
+Or create `config/local.json`:
+```json
+{
+  "environment": "production",
+  "debug": false,
+  "logging": { "level": "WARNING" }
+}
+```
 
-1. Go to GitHub repository
-2. Click "Releases"
-3. Click "Create a release"
-4. Select tag v0.1.0
-5. Add release notes (copy from RELEASE_NOTES.md)
-6. Attach requirements.txt
-7. Publish release
-
-### 4. Documentation Deployment (Day 2)
+### 3. Initialize Database
 
 ```bash
-# Build documentation (if using Sphinx)
-cd docs
-make html
-
-# Deploy to GitHub Pages
-git add docs/_build/html
-git commit -m "Deploy documentation"
-git push origin main
+python -c "from src.core.db_init import init_database; init_database()"
 ```
 
-### 5. User Communication (Day 2)
+### 4. Start Ollama
 
-- [ ] Send release announcement
-- [ ] Update project website
-- [ ] Post on social media
-- [ ] Notify stakeholders
-- [ ] Create blog post
+```bash
+ollama serve
+```
 
-### 6. Post-Release Monitoring (Day 3+)
+### 5. Launch JARVIS
 
-- [ ] Monitor GitHub issues
-- [ ] Track error reports
-- [ ] Collect user feedback
-- [ ] Monitor performance metrics
-- [ ] Check security alerts
+```bash
+python src/main.py
+```
+
+## Post-Deployment Verification
+
+- [ ] Wake word responds within 2 seconds
+- [ ] Slime body renders at 60 FPS
+- [ ] Voice commands execute correctly
+- [ ] Audit log is being written to `data/jarvis.db`
+- [ ] CPU usage in standby < 5%
+- [ ] Memory usage < 4 GB
 
 ## Rollback Plan
 
-If critical issues are found:
+1. Stop JARVIS (Ctrl+C or close window)
+2. Checkout previous version: `git checkout v0.0.9`
+3. Reinstall dependencies: `pip install -r requirements.txt`
+4. Restart JARVIS
 
-```bash
-# Revert to previous version
-git revert v0.1.0
+## Monitoring
 
-# Create hotfix branch
-git checkout -b hotfix/critical-issue
+- Check `logs/jarvis.log` for INFO-level events
+- Check `logs/jarvis_errors.log` for errors
+- Query audit log: `python -c "from src.security.audit_logger import AuditLogger; ..."`
 
-# Fix issue
-# ... make changes ...
+## Security Checklist
 
-# Test thoroughly
-pytest tests/ -v
-
-# Create new tag
-git tag -a v0.1.1 -m "Critical hotfix"
-
-# Push hotfix
-git push origin hotfix/critical-issue
-git push origin v0.1.1
-```
-
-## Post-Deployment Tasks
-
-### Week 1
-- [ ] Monitor error logs
-- [ ] Collect user feedback
-- [ ] Fix critical bugs
-- [ ] Update documentation based on feedback
-
-### Week 2-4
-- [ ] Analyze performance metrics
-- [ ] Optimize based on real usage
-- [ ] Plan Phase 2 features
-- [ ] Prepare Phase 2 roadmap
-
-### Month 2-3
-- [ ] Gather feature requests
-- [ ] Plan Phase 2 implementation
-- [ ] Begin Phase 2 development
-- [ ] Maintain Phase 1 with bug fixes
-
-## Success Criteria
-
-### Deployment Success
-- [x] All tests passing
-- [x] Documentation complete
-- [x] Code reviewed
-- [x] Security verified
-- [x] Performance validated
-
-### User Adoption
-- [ ] 100+ downloads in first week
-- [ ] 50+ GitHub stars
-- [ ] 10+ GitHub issues (feedback)
-- [ ] Positive user feedback
-
-### Quality Metrics
-- [ ] <1% error rate
-- [ ] <100ms average response time
-- [ ] >95% uptime
-- [ ] <5% CPU usage (standby)
-
-## Maintenance Plan
-
-### Daily
-- Monitor error logs
-- Check GitHub issues
-- Respond to user questions
-
-### Weekly
-- Review performance metrics
-- Analyze user feedback
-- Plan bug fixes
-- Update documentation
-
-### Monthly
-- Release bug fix updates
-- Plan next phase features
-- Analyze usage patterns
-- Update roadmap
-
-## Support Channels
-
-- **GitHub Issues**: Bug reports and feature requests
-- **GitHub Discussions**: General questions and discussions
-- **Email**: Support inquiries
-- **Documentation**: Self-service help
-
-## Version Management
-
-### Semantic Versioning
-- MAJOR.MINOR.PATCH
-- 0.1.0 = Phase 1 MVP
-- 0.2.0 = Phase 2 features
-- 1.0.0 = Production release
-
-### Release Schedule
-- Phase 1: v0.1.0 (April 2026)
-- Phase 2: v0.2.0 (July 2026)
-- Phase 3: v0.3.0 (October 2026)
-- Phase 4: v0.4.0 (January 2027)
-- Production: v1.0.0 (April 2027)
-
-## Deployment Verification Checklist
-
-Before marking deployment as complete:
-
-- [x] All tests passing
-- [x] Documentation deployed
-- [x] GitHub release created
-- [x] Version tagged
-- [x] Changelog updated
-- [x] Performance verified
-- [x] Security verified
-- [x] User documentation accessible
-- [x] Support channels active
-- [x] Monitoring in place
-
-## Sign-Off
-
-**Deployment Manager**: [Name]  
-**Date**: April 12, 2026  
-**Status**: ✅ APPROVED FOR RELEASE
-
----
-
-**JARVIS AI Assistant Phase 1 MVP is ready for production deployment!** 🚀
+- [ ] Encryption key is stored securely (not in config files)
+- [ ] Audit log integrity verified on startup
+- [ ] Windows Defender is enabled and up to date
+- [ ] Trust level starts at 0 for new installations
+- [ ] Circuit breaker limits are not disabled

@@ -15,10 +15,25 @@ from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from .slime_body import SlimeBody, AnimationState, Vector2
 
 
+def get_monitor_geometry(monitor_id: int = 0):
+    """
+    Return (x, y, width, height) for the requested monitor.
+
+    Falls back to primary monitor geometry if monitor_id is out of range.
+    """
+    app = QApplication.instance()
+    screens = app.screens() if app else []
+    if not screens:
+        return 0, 0, 1920, 1080
+    idx = min(monitor_id, len(screens) - 1)
+    geo = screens[idx].geometry()
+    return geo.x(), geo.y(), geo.width(), geo.height()
+
+
 class DesktopOverlay(QOpenGLWidget):
     """
     Desktop overlay widget with slime body rendering.
-    
+
     Features:
     - Transparent overlay on desktop
     - Slime body physics simulation
@@ -58,6 +73,9 @@ class DesktopOverlay(QOpenGLWidget):
         self.frame_time = 1000 // self.fps  # milliseconds
         self.delta_time = self.frame_time / 1000.0
 
+        # Multi-monitor: position on the correct screen
+        self._monitor_x, self._monitor_y, self.width, self.height = get_monitor_geometry(monitor_id)
+
         # Setup window
         self._setup_window()
 
@@ -69,7 +87,7 @@ class DesktopOverlay(QOpenGLWidget):
     def _setup_window(self) -> None:
         """Configure window properties for overlay"""
         self.setWindowTitle("JARVIS Overlay")
-        self.setGeometry(0, 0, self.width, self.height)
+        self.setGeometry(self._monitor_x, self._monitor_y, self.width, self.height)
 
         # Make window transparent and always on top
         self.setWindowFlags(

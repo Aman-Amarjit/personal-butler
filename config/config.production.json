@@ -1,0 +1,14 @@
+{
+    "environment": "production",
+    "debug": false,
+    "logging": {
+        "level": "WARNING",
+        "file": "logs/jarvis.log"
+    },
+    "ollama": {
+        "timeout": 60
+    },
+    "security": {
+        "trust_level": 0
+    }
+}
