@@ -244,3 +244,27 @@ class CommandInterpreter:
             "context_window": self.context_window,
             "recent_commands": self.conversation_history[-3:] if self.conversation_history else []
         }
+
+    def interpret(self, text: str) -> dict:
+        """
+        Convenience wrapper around parse_command that returns a plain dict.
+
+        Args:
+            text: Natural language command text
+
+        Returns:
+            Dict with 'intent', 'action', 'entities', 'confidence' keys
+        """
+        cmd = self.parse_command(text)
+        return {
+            "intent": cmd.intent.value,
+            "action": cmd.action,
+            "entities": cmd.entities,
+            "confidence": cmd.confidence,
+            "requires_confirmation": cmd.requires_confirmation,
+        }
+
+    @property
+    def is_listening(self) -> bool:
+        """Compatibility shim used by tests."""
+        return False

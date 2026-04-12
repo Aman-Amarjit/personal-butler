@@ -84,7 +84,7 @@ class ResponseGenerator:
 
     def generate_response(
         self,
-        intent: CommandIntent,
+        intent,
         context: Optional[str] = None,
         entities: Optional[Dict[str, Any]] = None,
         emotion_state: Optional[str] = None
@@ -103,6 +103,13 @@ class ResponseGenerator:
         """
         try:
             entities = entities or {}
+
+            # Accept string intent (from interpret()) or CommandIntent enum
+            if isinstance(intent, str):
+                try:
+                    intent = CommandIntent(intent)
+                except ValueError:
+                    intent = CommandIntent.UNKNOWN
 
             # Try template-based response first
             template_response = self._generate_template_response(intent, entities)

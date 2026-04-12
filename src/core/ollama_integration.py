@@ -360,3 +360,15 @@ class OllamaIntegration:
             "I'm currently unable to process that request as my AI engine "
             "is not available. Please ensure Ollama is running and try again."
         )
+
+    def generate_fallback_response(self, prompt: str) -> str:
+        """
+        Return a fallback response without calling Ollama.
+
+        Args:
+            prompt: User prompt (used for context only)
+
+        Returns:
+            Fallback response string
+        """
+        return self.handle_unavailable()

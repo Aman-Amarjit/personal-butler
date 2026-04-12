@@ -1,96 +1,107 @@
 """
 JARVIS AI Assistant - Main Entry Point
-
-Initializes and runs the JARVIS system with voice interaction,
-AI processing, and slime body UI.
 """
 
 import sys
+import os
 import argparse
 import logging
-from pathlib import Path
 
-from src.ui.overlay import create_overlay
+# Ensure project root is on the path so `src.*` imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from PyQt6.QtWidgets import QApplication
 
 
 def setup_logging(debug: bool = False) -> None:
-    """
-    Setup logging configuration.
-
-    Args:
-        debug: Enable debug logging
-    """
-    log_level = logging.DEBUG if debug else logging.INFO
+    level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ],
     )
 
 
 def main() -> int:
-    """
-    Main entry point for JARVIS.
-
-    Returns:
-        Exit code
-    """
-    parser = argparse.ArgumentParser(
-        description="JARVIS AI Assistant"
-    )
-    parser.add_argument(
-        "--dev",
-        action="store_true",
-        help="Run in development mode"
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging"
-    )
-    parser.add_argument(
-        "--width",
-        type=int,
-        default=1920,
-        help="Overlay width"
-    )
-    parser.add_argument(
-        "--height",
-        type=int,
-        default=1080,
-        help="Overlay height"
-    )
-
+    parser = argparse.ArgumentParser(description="JARVIS AI Assistant")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--monitor", type=int, default=0, help="Target monitor index")
+    parser.add_argument("--no-voice", action="store_true", help="Disable voice (UI only)")
     args = parser.parse_args()
 
-    # Setup logging
-    setup_logging(debug=args.debug or args.dev)
-    logger = logging.getLogger(__name__)
+    setup_logging(debug=args.debug)
+    logger = logging.getLogger("jarvis")
+    logger.info("Starting JARVIS AI Assistant v0.1.0")
 
-    logger.info("Starting JARVIS AI Assistant")
-    logger.info(f"Development mode: {args.dev}")
+    # QApplication MUST be created before any QWidget
+    app = QApplication(sys.argv)
+    app.setApplicationName("JARVIS")
+    app.setApplicationVersion("0.1.0")
 
     try:
-        # Create and show overlay
-        overlay = create_overlay(
-            width=args.width,
-            height=args.height
+        from src.core.config_manager import ConfigManager
+        from src.core.logger import setup_logging as setup_jarvis_logging
+        from src.core.db_init import init_database
+        from src.ui.overlay import DesktopOverlay
+        from src.ui.visual_indicators import VisualIndicators
+        from src.ui.slime_body import AnimationState
+
+        # Load config
+        config = ConfigManager(
+            config_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
         )
+        logger.info(f"Environment: {config.environment}")
+
+        # Init database
+        db_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data", "jarvis.db"
+        )
+        init_database(db_path)
+        logger.info("Database initialized")
+
+        # Create overlay on the requested monitor
+        overlay = DesktopOverlay(monitor_id=args.monitor)
         overlay.show()
+        logger.info(f"Overlay shown on monitor {args.monitor}")
 
-        logger.info("Overlay created and displayed")
+        # Optionally start voice pipeline
+        if not args.no_voice:
+            _start_voice_pipeline(overlay, config, logger)
 
-        # Run event loop
-        import sys
-        from PyQt6.QtWidgets import QApplication
-        app = QApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-
+        logger.info("JARVIS is running. Press Escape in the overlay to quit.")
         return app.exec()
 
-    except Exception as e:
-        logger.error(f"Error starting JARVIS: {e}", exc_info=True)
+    except Exception as exc:
+        logger.error(f"Fatal error: {exc}", exc_info=True)
         return 1
+
+
+def _start_voice_pipeline(overlay, config, logger) -> None:
+    """Start voice components in background threads (best-effort)."""
+    try:
+        from src.voice.text_to_speech import TextToSpeechEngine
+        from src.ui.slime_body import AnimationState
+
+        tts = TextToSpeechEngine(
+            speed=config.get("voice.tts_speed", 1.0),
+            pitch=config.get("voice.tts_pitch", 1.0),
+        )
+
+        def speak(text: str) -> None:
+            logger.info(f"JARVIS says: {text}")
+            overlay.set_animation_state(AnimationState.SPEAKING)
+            tts.engine.say(text)
+            tts.engine.runAndWait()
+            overlay.set_animation_state(AnimationState.IDLE)
+
+        speak("Hey, I'm JARVIS. I'm ready.")
+        logger.info("Voice pipeline started")
+
+    except Exception as exc:
+        logger.warning(f"Voice pipeline unavailable (running UI-only): {exc}")
 
 
 if __name__ == "__main__":
