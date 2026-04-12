@@ -1,0 +1,49 @@
+{
+  "environment": "development",
+  "debug": true,
+  "logging": {
+    "level": "INFO",
+    "file": "logs/jarvis.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  },
+  "ollama": {
+    "host": "http://localhost",
+    "port": 11434,
+    "model_size": "7b",
+    "available_models": [
+      "3b",
+      "7b",
+      "13b"
+    ],
+    "timeout": 30
+  },
+  "voice": {
+    "wake_word": "Hey JARVIS",
+    "wake_word_confidence": 0.8,
+    "stt_language": "en-US",
+    "tts_voice": "default",
+    "tts_speed": 1.0,
+    "tts_pitch": 1.0
+  },
+  "ui": {
+    "theme": "dark",
+    "slime_color": "#00FFFF",
+    "slime_glow": true,
+    "animation_fps": 60,
+    "transparency": 0.95
+  },
+  "security": {
+    "enable_audit_logging": true,
+    "enable_encryption": true,
+    "trust_level": 0,
+    "max_recursion_depth": 10,
+    "max_iterations": 100
+  },
+  "performance": {
+    "max_cpu_percent": 5,
+    "max_memory_mb": 4096,
+    "cache_enabled": true,
+    "cache_size_mb": 512
+  }
+}
