@@ -45,7 +45,14 @@ class AuditLogger:
             retention_days: Log retention period in days
         """
         self.db_path = db_path
-        self.secret_key = secret_key or "default-secret-key"
+        # Generate a machine-specific key if none provided
+        # (never hardcode a real secret here — use config/local.json for production)
+        if secret_key:
+            self.secret_key = secret_key
+        else:
+            import hashlib, platform
+            machine_id = platform.node() + platform.machine()
+            self.secret_key = hashlib.sha256(machine_id.encode()).hexdigest()[:32]
         self.retention_days = retention_days
 
         # Create database directory if needed

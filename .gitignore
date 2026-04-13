@@ -48,5 +48,6 @@ Thumbs.db
 logs/
 *.log
 config/local.json
+data/
 data/private/
 .env
