@@ -10,7 +10,7 @@ import os
 from typing import Optional, Tuple
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 import base64
 
@@ -56,7 +56,7 @@ class EncryptionManager:
                 self.salt = os.urandom(16)
 
             # Derive key from password
-            kdf = PBKDF2(
+            kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=self.salt,
@@ -206,3 +206,19 @@ class EncryptionManager:
             "has_password": self.password is not None,
             "salt_length": len(self.salt) if self.salt else 0
         }
+
+    # ------------------------------------------------------------------
+    # Convenience aliases used by integration tests
+    # ------------------------------------------------------------------
+
+    def encrypt(self, plaintext: str) -> bytes:
+        """Encrypt plaintext and return raw ciphertext bytes."""
+        if not self.cipher_suite:
+            raise RuntimeError("Cipher not initialized")
+        return self.cipher_suite.encrypt(plaintext.encode())
+
+    def decrypt(self, ciphertext: bytes) -> str:
+        """Decrypt raw ciphertext bytes and return plaintext string."""
+        if not self.cipher_suite:
+            raise RuntimeError("Cipher not initialized")
+        return self.cipher_suite.decrypt(ciphertext).decode()

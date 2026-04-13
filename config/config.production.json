@@ -3,12 +3,15 @@
     "debug": false,
     "logging": {
         "level": "WARNING",
-        "file": "logs/jarvis.log"
+        "file": "logs/panda.log"
     },
     "ollama": {
         "timeout": 60
     },
     "security": {
         "trust_level": 0
+    },
+    "voice": {
+        "whisper_model": "base"
     }
 }

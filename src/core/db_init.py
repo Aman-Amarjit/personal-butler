@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_conv_timestamp ON conversation_history(timestamp)
 """
 
 
-def init_database(db_path: str = "data/jarvis.db") -> sqlite3.Connection:
+def init_database(db_path: str = "data/panda.db") -> sqlite3.Connection:
     """
     Initialize the SQLite database with the required schema.
 
@@ -57,7 +57,7 @@ def init_database(db_path: str = "data/jarvis.db") -> sqlite3.Connection:
     return conn
 
 
-def get_connection(db_path: str = "data/jarvis.db") -> sqlite3.Connection:
+def get_connection(db_path: str = "data/panda.db") -> sqlite3.Connection:
     """Return a connection to an already-initialized database."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row

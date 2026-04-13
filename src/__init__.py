@@ -1,4 +1,4 @@
-"""JARVIS AI Assistant - Main Package"""
+"""PANDA AI Assistant - Main Package"""
 
 __version__ = "0.1.0"
-__author__ = "JARVIS Development Team"
+__author__ = "PANDA Development Team"

@@ -134,7 +134,7 @@ class EmotionalAppropriatenessChecker:
 
 
 class SelfReflectionEngine:
-    """Enables JARVIS to reflect on its own responses and improve."""
+    """Enables PANDA to reflect on its own responses and improve."""
 
     def __init__(self):
         self._reflection_log: List[Dict] = []

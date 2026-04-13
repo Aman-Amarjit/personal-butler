@@ -23,7 +23,7 @@ class ConfigManager:
     def __init__(self, config_dir: str = "config"):
         self.config_dir = Path(config_dir)
         self._config: Dict[str, Any] = {}
-        self._env = os.environ.get("JARVIS_ENV", "development")
+        self._env = os.environ.get("PANDA_ENV", "development")
         self._load()
 
     def _load(self) -> None:

@@ -110,22 +110,44 @@ class WeatherWidget:
                 time.sleep(60)  # Retry after 1 minute
 
     def _fetch_weather(self) -> None:
-        """Fetch weather data"""
+        """Fetch weather data from wttr.in (no API key required)."""
         try:
-            # Placeholder for actual weather API call
-            # Would integrate with OpenWeatherMap, WeatherAPI, etc.
-            
+            import requests as _requests
+            location = self.location if self.location != "Current Location" else ""
+            url = f"https://wttr.in/{location}?format=j1"
+            resp = _requests.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            current = data["current_condition"][0]
+            temp_c = float(current["temp_C"])
+            temp_f = temp_c * 9 / 5 + 32
+            condition = current["weatherDesc"][0]["value"]
+            humidity = float(current["humidity"])
+            wind_kmph = float(current["windspeedKmph"])
+            wind_mph = wind_kmph * 0.621371
+
             self.weather_data = WeatherData(
-                temperature=72.0,
-                condition="Partly Cloudy",
-                humidity=65.0,
-                wind_speed=10.0,
+                temperature=round(temp_f, 1),
+                condition=condition,
+                humidity=humidity,
+                wind_speed=round(wind_mph, 1),
                 location=self.location,
                 last_updated=datetime.now()
             )
-            logger.debug(f"Weather updated: {self.weather_data.condition}")
+            logger.debug(f"Weather updated: {self.weather_data.condition} {self.weather_data.temperature}°F")
         except Exception as e:
             logger.error(f"Failed to fetch weather: {e}")
+            # Fall back to placeholder data so the widget still shows something
+            if self.weather_data is None:
+                self.weather_data = WeatherData(
+                    temperature=72.0,
+                    condition="Unavailable",
+                    humidity=0.0,
+                    wind_speed=0.0,
+                    location=self.location,
+                    last_updated=datetime.now()
+                )
 
     def get_display_text(self) -> str:
         """Get formatted weather text"""

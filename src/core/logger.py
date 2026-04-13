@@ -47,7 +47,7 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO") -> logging.Logger:
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "INFO",
                 "formatter": "detailed",
-                "filename": os.path.join(log_dir, "jarvis.log"),
+                "filename": os.path.join(log_dir, "panda.log"),
                 "maxBytes": 10 * 1024 * 1024,  # 10MB
                 "backupCount": 5,
                 "encoding": "utf8"
@@ -56,14 +56,14 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO") -> logging.Logger:
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "ERROR",
                 "formatter": "detailed",
-                "filename": os.path.join(log_dir, "jarvis_errors.log"),
+                "filename": os.path.join(log_dir, "panda_errors.log"),
                 "maxBytes": 5 * 1024 * 1024,  # 5MB
                 "backupCount": 3,
                 "encoding": "utf8"
             }
         },
         "loggers": {
-            "jarvis": {
+            "panda": {
                 "level": level,
                 "handlers": ["console", "file", "error_file"],
                 "propagate": False
@@ -76,17 +76,17 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO") -> logging.Logger:
     }
 
     logging.config.dictConfig(log_config)
-    return logging.getLogger("jarvis")
+    return logging.getLogger("panda")
 
 
 def get_logger(name: str) -> logging.Logger:
     """
-    Get a named logger under the jarvis namespace.
+    Get a named logger under the panda namespace.
 
     Args:
-        name: Logger name (will be prefixed with 'jarvis.')
+        name: Logger name (will be prefixed with 'panda.')
 
     Returns:
         Logger instance
     """
-    return logging.getLogger(f"jarvis.{name}")
+    return logging.getLogger(f"panda.{name}")

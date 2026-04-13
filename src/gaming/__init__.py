@@ -1,1 +1,1 @@
-# Gaming automation package for JARVIS
+# Gaming automation package for PANDA

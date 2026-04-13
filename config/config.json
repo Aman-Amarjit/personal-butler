@@ -3,7 +3,7 @@
   "debug": true,
   "logging": {
     "level": "INFO",
-    "file": "logs/jarvis.log",
+    "file": "logs/panda.log",
     "max_size_mb": 10,
     "backup_count": 5
   },
@@ -19,12 +19,13 @@
     "timeout": 30
   },
   "voice": {
-    "wake_word": "Hey JARVIS",
+    "wake_word": "Hey PANDA",
     "wake_word_confidence": 0.8,
     "stt_language": "en-US",
     "tts_voice": "default",
     "tts_speed": 1.0,
-    "tts_pitch": 1.0
+    "tts_pitch": 1.0,
+    "whisper_model": "base"
   },
   "ui": {
     "theme": "dark",

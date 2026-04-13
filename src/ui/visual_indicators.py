@@ -22,7 +22,7 @@ class IndicatorState(Enum):
 
 class VisualIndicators:
     """
-    Manages all visual status indicators for JARVIS.
+    Manages all visual status indicators for PANDA.
 
     Indicators:
     - Camera: red dot when camera is active

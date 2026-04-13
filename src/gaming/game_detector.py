@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-logger = logging.getLogger("jarvis.gaming.detector")
+logger = logging.getLogger("panda.gaming.detector")
 
 
 @dataclass

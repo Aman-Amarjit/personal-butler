@@ -364,3 +364,55 @@ class AuditLogger:
         except Exception as e:
             logger.error(f"Error getting status: {e}")
             return {}
+
+    # ------------------------------------------------------------------
+    # Convenience aliases used by integration tests
+    # ------------------------------------------------------------------
+
+    def log(
+        self,
+        action: str,
+        user: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Alias for log_action."""
+        return self.log_action(action=action, user=user, details=details)
+
+    def get_entries(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return the most recent *limit* audit entries."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            )
+            rows = cursor.fetchall()
+            conn.close()
+            return [
+                {
+                    "id": row[0],
+                    "timestamp": row[1],
+                    "action": row[2],
+                    "user": row[3],
+                    "details": json.loads(row[4]),
+                    "signature": row[5],
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error(f"Error getting entries: {e}")
+            return []
+
+    def verify_integrity(self) -> bool:
+        """Verify integrity of all log entries. Returns True if all pass."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM audit_logs")
+            ids = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return all(self.verify_log_integrity(log_id) for log_id in ids)
+        except Exception as e:
+            logger.error(f"Error verifying integrity: {e}")
+            return False

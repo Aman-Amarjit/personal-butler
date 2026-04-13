@@ -19,6 +19,7 @@ class AnimationState(Enum):
     PROCESSING = "processing"
     SPEAKING = "speaking"
     ALERT = "alert"
+    DANCING = "dancing"
 
 
 @dataclass
@@ -95,6 +96,12 @@ class SlimeBody:
         self.jiggle_intensity = 0.05
         self.breathing_speed = 2.0
 
+        # Dance state
+        self._dance_offset_x = 0.0   # horizontal bounce offset
+        self._dance_offset_y = 0.0   # vertical bounce offset
+        self._dance_spin     = 0.0   # rotation angle for deformation spin
+        self._dance_scale    = 1.0   # size pulse
+
         # Ripple effect
         self.ripples: List[dict] = []
         self.ripple_damping = 0.98
@@ -137,25 +144,33 @@ class SlimeBody:
 
     def animate_jiggle(self, delta_time: float) -> None:
         """
-        Apply jiggle/breathing animation in idle state.
-
-        Args:
-            delta_time: Time elapsed since last frame
+        Apply jiggle/breathing/dancing animation based on current state.
         """
         self.animation_time += delta_time
 
         if self.animation_state == AnimationState.IDLE:
-            # Breathing animation
             breathing = math.sin(self.animation_time * self.breathing_speed) * 0.02
             self.current_size = self.base_size * (1.0 + breathing)
-
-            # Jiggle deformation
             for i in range(self.segments):
-                jiggle = (
-                    math.sin(self.animation_time * 3.0 + i) *
-                    self.jiggle_intensity
-                )
+                jiggle = math.sin(self.animation_time * 3.0 + i) * self.jiggle_intensity
                 self.target_deformation[i] = jiggle
+
+        elif self.animation_state == AnimationState.DANCING:
+            t = self.animation_time
+            # Bounce up/down at ~2 Hz
+            self._dance_offset_y = math.sin(t * 4.0 * math.pi) * 18.0
+            # Sway left/right at ~1 Hz
+            self._dance_offset_x = math.sin(t * 2.0 * math.pi) * 12.0
+            # Spin the deformation pattern
+            self._dance_spin = t * 3.0
+            # Pulse size in sync with bounce
+            self._dance_scale = 1.0 + math.sin(t * 4.0 * math.pi) * 0.12
+            self.current_size = self.base_size * self._dance_scale
+            # Squash-and-stretch deformation
+            for i in range(self.segments):
+                angle = (2 * math.pi * i) / self.segments + self._dance_spin
+                wave = math.sin(angle * 2 + t * 8) * 0.25
+                self.target_deformation[i] = wave
 
     def apply_force(self, force: Vector2, position: Vector2) -> None:
         """
@@ -234,16 +249,11 @@ class SlimeBody:
         self.ripples.append(ripple)
 
     def set_animation_state(self, state: AnimationState) -> None:
-        """
-        Set the animation state.
-
-        Args:
-            state: New animation state
-        """
         self.animation_state = state
         self.animation_time = 0.0
+        self._dance_offset_x = 0.0
+        self._dance_offset_y = 0.0
 
-        # Reset deformation for state change
         if state == AnimationState.IDLE:
             self.jiggle_intensity = 0.05
         elif state == AnimationState.LISTENING:
@@ -252,6 +262,8 @@ class SlimeBody:
             self.jiggle_intensity = 0.15
         elif state == AnimationState.ALERT:
             self.jiggle_intensity = 0.2
+        elif state == AnimationState.DANCING:
+            self.jiggle_intensity = 0.3
 
     def get_outline_points(self) -> List[Tuple[float, float]]:
         """
@@ -287,9 +299,9 @@ class SlimeBody:
                 deformed_x += wave * math.cos(angle)
                 deformed_y += wave * math.sin(angle)
 
-            # Add position offset
-            final_x = self.position.x + deformed_x
-            final_y = self.position.y + deformed_y
+            # Add position offset (+ dance bounce offset)
+            final_x = self.position.x + deformed_x + self._dance_offset_x
+            final_y = self.position.y + deformed_y + self._dance_offset_y
             outline.append((final_x, final_y))
 
         return outline

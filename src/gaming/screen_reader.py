@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-logger = logging.getLogger("jarvis.gaming.screen")
+logger = logging.getLogger("panda.gaming.screen")
 
 
 @dataclass

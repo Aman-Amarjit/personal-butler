@@ -1,5 +1,5 @@
 """
-Autonomous Player - JARVIS plays games by itself.
+Autonomous Player - PANDA plays games by itself.
 
 Runs a perception → reasoning → action loop:
   1. Capture screen
@@ -22,7 +22,7 @@ from .input_controller import InputController, MacroStep
 from .screen_vision import ScreenVision
 from .game_detector import GameDetector, GameProfile
 
-logger = logging.getLogger("jarvis.gaming.auto")
+logger = logging.getLogger("panda.gaming.auto")
 
 
 @dataclass

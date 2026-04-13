@@ -22,6 +22,7 @@ class CommandIntent(Enum):
     TASK_AUTOMATION = "task_automation"
     FILE_OPERATION = "file_operation"
     GAME_CONTROL = "game_control"
+    SING = "sing"
     UNKNOWN = "unknown"
 
 
@@ -55,6 +56,10 @@ class CommandInterpreter:
 
         # Intent patterns
         self.intent_patterns = {
+            CommandIntent.SING: [
+                "sing", "song", "sing a song", "sing me", "dance", "perform",
+                "sing for me", "play a song", "hum", "rap",
+            ],
             CommandIntent.APPLICATION_LAUNCH: [
                 "open", "launch", "start", "run", "execute"
             ],
@@ -151,16 +156,20 @@ class CommandInterpreter:
             )
 
     def _classify_intent(self, text: str) -> CommandIntent:
-        """Classify command intent — game_control checked first to avoid false matches."""
-        # Game control must be checked before information_retrieval because
-        # vision triggers like "what do you see" contain "what"
+        """Classify command intent — priority order: sing > game > others."""
+        # Sing/dance checked first
+        for keyword in self.intent_patterns.get(CommandIntent.SING, []):
+            if keyword in text:
+                return CommandIntent.SING
+
+        # Game control before information_retrieval (avoids "what" false matches)
         game_keywords = self.intent_patterns[CommandIntent.GAME_CONTROL]
         for keyword in game_keywords:
             if keyword in text:
                 return CommandIntent.GAME_CONTROL
 
         for intent, keywords in self.intent_patterns.items():
-            if intent == CommandIntent.GAME_CONTROL:
+            if intent in (CommandIntent.GAME_CONTROL, CommandIntent.SING):
                 continue
             for keyword in keywords:
                 if keyword in text:

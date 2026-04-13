@@ -2,7 +2,7 @@
 Screen Vision - Answers questions about what's on screen using Ollama.
 
 Captures the screen, encodes it, and sends it to an Ollama vision model
-(llava or moondream) so JARVIS can describe or reason about what it sees.
+(llava or moondream) so PANDA can describe or reason about what it sees.
 Falls back to a text description of pixel statistics when no vision model
 is available.
 """
@@ -17,7 +17,7 @@ import requests
 
 from .screen_reader import ScreenReader, ScreenRegion, ScreenCapture
 
-logger = logging.getLogger("jarvis.gaming.vision")
+logger = logging.getLogger("panda.gaming.vision")
 
 # Vision models to try in order of preference
 VISION_MODELS = ["llava:7b", "llava:13b", "moondream", "llava"]

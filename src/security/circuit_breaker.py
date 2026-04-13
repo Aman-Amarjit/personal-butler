@@ -34,7 +34,8 @@ class CircuitBreaker:
     def __init__(
         self,
         max_recursion_depth: int = 10,
-        max_iterations: int = 100
+        max_iterations: int = 100,
+        max_depth: Optional[int] = None,  # alias accepted by integration tests
     ):
         """
         Initialize circuit breaker.
@@ -42,7 +43,12 @@ class CircuitBreaker:
         Args:
             max_recursion_depth: Maximum recursion depth
             max_iterations: Maximum iterations allowed
+            max_depth: Alias for max_recursion_depth
         """
+        # Allow max_depth as an alias
+        if max_depth is not None:
+            max_recursion_depth = max_depth
+
         self.max_recursion_depth = max_recursion_depth
         self.max_iterations = max_iterations
 
@@ -185,6 +191,26 @@ class CircuitBreaker:
         """Context manager exit"""
         self.exit_recursion()
         return False
+
+    # ------------------------------------------------------------------
+    # Convenience aliases used by integration tests
+    # ------------------------------------------------------------------
+
+    def enter(self) -> None:
+        """Enter a recursive level; raises RuntimeError if limit exceeded."""
+        if not self.enter_recursion():
+            raise RuntimeError(
+                f"Circuit breaker: recursion limit exceeded ({self.max_recursion_depth})"
+            )
+
+    def reset(self) -> None:
+        """Alias for reset_circuit."""
+        self.reset_circuit()
+
+    @property
+    def current_depth(self) -> int:
+        """Current recursion depth."""
+        return self.recursion_depth
 
 
 class LoopProtector:

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .command_interpreter import Command, CommandIntent
-
 logger = logging.getLogger(__name__)
 
 # Lazy-loaded game agent (only imported when needed)
@@ -142,6 +141,9 @@ class CommandExecutor:
             elif command.intent == CommandIntent.GAME_CONTROL:
                 return self._execute_game_control(command)
 
+            elif command.intent == CommandIntent.SING:
+                return self._execute_sing(command)
+
             else:
                 return ExecutionResult(
                     status=ExecutionStatus.INVALID_COMMAND,
@@ -185,47 +187,158 @@ class CommandExecutor:
         )
 
     def _execute_application_launch(self, command: Command) -> ExecutionResult:
-        """Execute application launch"""
+        """
+        Launch an application by name on Windows.
+
+        Handles:
+        - Common desktop apps (notepad, chrome, etc.)
+        - Windows Store / UWP apps (whatsapp, spotify, etc.)
+        - Website shortcuts (youtube, google, etc.)
+        """
         try:
-            app_name = command.entities.get("app_name", "").strip()
+            app_name = command.entities.get("app_name", "").strip().lower()
 
             if not app_name:
                 return ExecutionResult(
                     status=ExecutionStatus.INVALID_COMMAND,
-                    output="",
-                    error="No application specified"
+                    output="", error="No application specified"
                 )
 
-            # Try to launch application
+            # ── 1. Website shortcuts ──────────────────────────────────────
+            website_map = {
+                "youtube":   "https://youtube.com",
+                "google":    "https://google.com",
+                "gmail":     "https://mail.google.com",
+                "github":    "https://github.com",
+                "twitter":   "https://twitter.com",
+                "facebook":  "https://facebook.com",
+                "instagram": "https://instagram.com",
+                "reddit":    "https://reddit.com",
+                "netflix":   "https://netflix.com",
+                "amazon":    "https://amazon.com",
+                "linkedin":  "https://linkedin.com",
+                "whatsapp web": "https://web.whatsapp.com",
+            }
+            for key, url in website_map.items():
+                if key in app_name:
+                    subprocess.Popen(["start", url], shell=True)
+                    return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                          output=f"Opening {key} in browser")
+
+            # ── 2. Windows Store / UWP apps ───────────────────────────────
+            # These need `start ms-xxx:` URI or explorer shell: syntax
+            uwp_map = {
+                "whatsapp":   "whatsapp:",
+                "spotify":    "spotify:",
+                "calculator": "calculator:",
+                "calendar":   "outlookcal:",
+                "mail":       "outlookmail:",
+                "maps":       "bingmaps:",
+                "camera":     "microsoft.windows.camera:",
+                "photos":     "ms-photos:",
+                "store":      "ms-windows-store:",
+                "settings":   "ms-settings:",
+                "xbox":       "xbox:",
+                "teams":      "msteams:",
+                "onenote":    "onenote:",
+                "skype":      "skype:",
+                "telegram":   "tg:",
+                "discord":    "discord:",
+                "slack":      "slack:",
+                "zoom":       "zoommtg:",
+            }
+            for key, uri in uwp_map.items():
+                if key in app_name:
+                    subprocess.Popen(["start", uri], shell=True)
+                    logger.info(f"Launched UWP app: {key} via {uri}")
+                    return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                          output=f"Opening {key}")
+
+            # ── 3. Common desktop executables ─────────────────────────────
+            exe_map = {
+                "notepad":        "notepad.exe",
+                "paint":          "mspaint.exe",
+                "calculator":     "calc.exe",
+                "explorer":       "explorer.exe",
+                "file explorer":  "explorer.exe",
+                "task manager":   "taskmgr.exe",
+                "control panel":  "control.exe",
+                "command prompt": "cmd.exe",
+                "cmd":            "cmd.exe",
+                "powershell":     "powershell.exe",
+                "word":           "winword.exe",
+                "excel":          "excel.exe",
+                "powerpoint":     "powerpnt.exe",
+                "outlook":        "outlook.exe",
+                "chrome":         "chrome.exe",
+                "firefox":        "firefox.exe",
+                "edge":           "msedge.exe",
+                "brave":          "brave.exe",
+                "vlc":            "vlc.exe",
+                "vs code":        "code.exe",
+                "vscode":         "code.exe",
+                "visual studio":  "devenv.exe",
+                "pycharm":        "pycharm64.exe",
+                "steam":          "steam.exe",
+                "obs":            "obs64.exe",
+            }
+            for key, exe in exe_map.items():
+                if key in app_name:
+                    try:
+                        subprocess.Popen(exe)
+                        return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                              output=f"Opening {key}")
+                    except FileNotFoundError:
+                        pass  # fall through to generic launch
+
+            # ── 4. Registry-aware resolution (Stage 3) ───────────────────
+            # Query the Windows App Paths registry key for a resolved path
+            try:
+                from src.core.app_discovery import get_manifest
+                manifest = get_manifest()
+                resolved = manifest.resolve(app_name, threshold=0.72)
+                if resolved:
+                    exe_path = manifest.get_exe_path(resolved)
+                    if exe_path:
+                        try:
+                            subprocess.Popen([exe_path])
+                            logger.info(f"Registry launch: '{resolved}' → {exe_path}")
+                            return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                                   output=f"Opening {resolved}")
+                        except Exception:
+                            pass
+                    # No path but we have a name — try start command
+                    try:
+                        subprocess.Popen(f'start "" "{resolved}"', shell=True)
+                        return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                               output=f"Opening {resolved}")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # ── 5. Generic fallback ───────────────────────────────────────
             try:
                 subprocess.Popen(app_name)
-                logger.info(f"Launched application: {app_name}")
+                return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                       output=f"Launched {app_name}")
+            except (FileNotFoundError, OSError):
+                pass
+
+            # Try via Windows `start` command (searches PATH + registry)
+            try:
+                subprocess.Popen(f'start "" "{app_name}"', shell=True)
+                return ExecutionResult(status=ExecutionStatus.SUCCESS,
+                                       output=f"Launched {app_name}")
+            except Exception as e:
                 return ExecutionResult(
-                    status=ExecutionStatus.SUCCESS,
-                    output=f"Launched {app_name}"
+                    status=ExecutionStatus.FAILED, output="",
+                    error=f"Could not find or launch '{app_name}': {e}"
                 )
-            except FileNotFoundError:
-                # Try with full path
-                try:
-                    subprocess.Popen(f"start {app_name}", shell=True)
-                    return ExecutionResult(
-                        status=ExecutionStatus.SUCCESS,
-                        output=f"Launched {app_name}"
-                    )
-                except Exception as e:
-                    return ExecutionResult(
-                        status=ExecutionStatus.FAILED,
-                        output="",
-                        error=f"Could not launch {app_name}: {e}"
-                    )
 
         except Exception as e:
             logger.error(f"Error launching application: {e}")
-            return ExecutionResult(
-                status=ExecutionStatus.FAILED,
-                output="",
-                error=str(e)
-            )
+            return ExecutionResult(status=ExecutionStatus.FAILED, output="", error=str(e))
 
     def _execute_system_command(self, command: Command) -> ExecutionResult:
         """Execute system command"""
@@ -256,17 +369,33 @@ class CommandExecutor:
             )
 
     def _execute_information_retrieval(self, command: Command) -> ExecutionResult:
-        """Execute information retrieval"""
+        """Execute information retrieval via Ollama."""
         try:
-            query = command.entities.get("query", "")
+            query = command.entities.get("query", command.action)
             logger.info(f"Information retrieval query: {query}")
 
-            # Placeholder for actual information retrieval
-            # Would integrate with search, APIs, etc.
+            # Try to answer via Ollama
+            try:
+                from src.core.ollama_integration import OllamaIntegration
+                ollama = OllamaIntegration()
+                if ollama.verify_running():
+                    answer = ollama.send_request(
+                        prompt=query,
+                        context="You are PANDA, a helpful AI assistant. Answer concisely.",
+                        max_tokens=300,
+                    )
+                    if answer:
+                        return ExecutionResult(
+                            status=ExecutionStatus.SUCCESS,
+                            output=answer,
+                        )
+            except Exception as exc:
+                logger.warning(f"Ollama unavailable for info retrieval: {exc}")
 
+            # Fallback: return the query echoed back
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
-                output=f"Retrieved information for: {query}"
+                output=f"I couldn't retrieve information for: {query}. Please ensure Ollama is running.",
             )
 
         except Exception as e:
@@ -278,19 +407,84 @@ class CommandExecutor:
             )
 
     def _execute_file_operation(self, command: Command) -> ExecutionResult:
-        """Execute file operation"""
+        """Execute file operation using shutil and os."""
+        import shutil
+
         try:
             operation = command.entities.get("operation", "")
-            logger.info(f"File operation: {operation}")
+            source = command.entities.get("source", "")
+            destination = command.entities.get("destination", "")
+            logger.info(f"File operation: {operation} src={source!r} dst={destination!r}")
 
-            # Placeholder for actual file operations
-            # Would implement copy, move, delete, rename
+            if operation == "copy":
+                if not source or not destination:
+                    return ExecutionResult(
+                        status=ExecutionStatus.INVALID_COMMAND,
+                        output="",
+                        error="copy requires source and destination paths",
+                    )
+                shutil.copy2(source, destination)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    output=f"Copied '{source}' to '{destination}'",
+                )
 
+            elif operation == "move":
+                if not source or not destination:
+                    return ExecutionResult(
+                        status=ExecutionStatus.INVALID_COMMAND,
+                        output="",
+                        error="move requires source and destination paths",
+                    )
+                shutil.move(source, destination)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    output=f"Moved '{source}' to '{destination}'",
+                )
+
+            elif operation == "rename":
+                if not source or not destination:
+                    return ExecutionResult(
+                        status=ExecutionStatus.INVALID_COMMAND,
+                        output="",
+                        error="rename requires source and destination paths",
+                    )
+                os.rename(source, destination)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    output=f"Renamed '{source}' to '{destination}'",
+                )
+
+            elif operation == "delete":
+                if not source:
+                    return ExecutionResult(
+                        status=ExecutionStatus.INVALID_COMMAND,
+                        output="",
+                        error="delete requires a source path",
+                    )
+                if os.path.isdir(source):
+                    shutil.rmtree(source)
+                else:
+                    os.remove(source)
+                return ExecutionResult(
+                    status=ExecutionStatus.SUCCESS,
+                    output=f"Deleted '{source}'",
+                )
+
+            else:
+                return ExecutionResult(
+                    status=ExecutionStatus.INVALID_COMMAND,
+                    output="",
+                    error=f"Unknown file operation: '{operation}'",
+                )
+
+        except FileNotFoundError as e:
+            logger.error(f"File not found during file operation: {e}")
             return ExecutionResult(
-                status=ExecutionStatus.SUCCESS,
-                output=f"File operation completed: {operation}"
+                status=ExecutionStatus.FAILED,
+                output="",
+                error=f"File not found: {e}",
             )
-
         except Exception as e:
             logger.error(f"Error executing file operation: {e}")
             return ExecutionResult(
@@ -298,6 +492,48 @@ class CommandExecutor:
                 output="",
                 error=str(e)
             )
+
+    def _execute_sing(self, command: Command) -> ExecutionResult:
+        """Pick a fun song and return the lyrics for TTS to sing."""
+        import random
+        songs = [
+            (
+                "Twinkle Twinkle Little Star",
+                "Twinkle twinkle little star, how I wonder what you are! "
+                "Up above the world so high, like a diamond in the sky. "
+                "Twinkle twinkle little star, how I wonder what you are!"
+            ),
+            (
+                "Happy Birthday",
+                "Happy birthday to you! Happy birthday to you! "
+                "Happy birthday dear friend, happy birthday to you!"
+            ),
+            (
+                "Row Your Boat",
+                "Row row row your boat, gently down the stream. "
+                "Merrily merrily merrily merrily, life is but a dream!"
+            ),
+            (
+                "PANDA's Song",
+                "I am PANDA, your AI friend, here to help until the end! "
+                "Ask me anything you need, I will help you guaranteed! "
+                "PANDA PANDA, that is me, the best assistant you will see!"
+            ),
+            (
+                "Old MacDonald",
+                "Old MacDonald had a farm, E-I-E-I-O! "
+                "And on his farm he had a cow, E-I-E-I-O! "
+                "With a moo moo here and a moo moo there, "
+                "here a moo, there a moo, everywhere a moo moo! "
+                "Old MacDonald had a farm, E-I-E-I-O!"
+            ),
+        ]
+        title, lyrics = random.choice(songs)
+        logger.info(f"Singing: {title}")
+        return ExecutionResult(
+            status=ExecutionStatus.SUCCESS,
+            output=f"♪ {lyrics} ♪",
+        )
 
     def _execute_game_control(self, command: Command) -> ExecutionResult:
         """Route game control commands to the GameAgent, ScreenVision, or AutonomousPlayer."""

@@ -15,13 +15,26 @@ from .command_interpreter import CommandIntent
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Response:
-    """Generated response"""
-    text: str
-    confidence: float
-    is_template: bool
-    emotion_markers: Dict[str, float]
+class Response(str):
+    """
+    Generated response — behaves as a plain string (satisfies isinstance(r, str))
+    while also exposing structured attributes (.text, .confidence, .is_template,
+    .emotion_markers) for callers that use the object form.
+    """
+
+    def __new__(
+        cls,
+        text: str = "",
+        confidence: float = 1.0,
+        is_template: bool = False,
+        emotion_markers: Optional[Dict[str, float]] = None,
+    ):
+        instance = str.__new__(cls, text)
+        instance.text = text
+        instance.confidence = confidence
+        instance.is_template = is_template
+        instance.emotion_markers = emotion_markers if emotion_markers is not None else {}
+        return instance
 
 
 class ResponseGenerator:
@@ -71,6 +84,10 @@ class ResponseGenerator:
                 "Executed.",
                 "On it.",
             ],
+            CommandIntent.SING: [
+                "Let me sing for you!",
+                "Here we go!",
+            ],
             CommandIntent.UNKNOWN: [
                 "I'm not sure what you mean. Could you rephrase that?",
                 "I didn't understand that. Could you try again?",
@@ -93,18 +110,12 @@ class ResponseGenerator:
         context: Optional[str] = None,
         entities: Optional[Dict[str, Any]] = None,
         emotion_state: Optional[str] = None
-    ) -> Response:
+    ) -> "Response":
         """
         Generate response for command.
 
-        Args:
-            intent: Command intent
-            context: Optional context
-            entities: Extracted entities
-            emotion_state: Emotional state
-
-        Returns:
-            Generated Response
+        Returns a Response object which is also a plain str, so both
+        ``isinstance(r, str)`` and ``r.text`` work correctly.
         """
         try:
             entities = entities or {}
@@ -198,82 +209,82 @@ class ResponseGenerator:
             emotion_markers=emotion_markers
         )
 
-    def format_for_voice(self, response: Response) -> str:
+    def format_for_voice(self, response) -> str:
         """
         Format response for voice output.
 
         Args:
-            response: Response to format
+            response: Response object or plain string
 
         Returns:
             Formatted text for voice
         """
-        # Ensure length is appropriate for voice
-        text = self._truncate_to_word_limit(response.text)
-
-        # Remove special characters that might confuse TTS
+        text = response.text if isinstance(response, Response) else response
+        text = self._truncate_to_word_limit(text)
         text = text.replace("_", " ")
         text = text.replace("-", " ")
-
         return text
 
-    def format_for_display(self, response: Response) -> str:
+    def format_for_display(self, response) -> str:
         """
         Format response for display.
 
         Args:
-            response: Response to format
+            response: Response object or plain string
 
         Returns:
             Formatted text for display
         """
-        return response.text
+        return response.text if isinstance(response, Response) else response
 
-    def apply_persona(self, response: Response, butler_mode: bool = False) -> str:
+    def apply_persona(self, response, butler_mode: bool = False) -> str:
         """
         Apply persona to response.
 
         Args:
-            response: Response to modify
+            response: Response object or plain string
             butler_mode: Apply butler persona
 
         Returns:
             Response with persona applied
         """
+        text = response.text if isinstance(response, Response) else response
         if butler_mode:
-            # Add butler-like formality
             prefixes = [
                 "If I may, ",
                 "Permit me to say, ",
                 "I would be delighted to inform you that ",
             ]
-            return prefixes[0] + response.text.lower()
+            return prefixes[0] + text.lower()
+        return text
 
-        return response.text
-
-    def validate_response_quality(self, response: Response) -> float:
+    def validate_response_quality(self, response) -> float:
         """
         Validate response quality.
 
         Args:
-            response: Response to validate
+            response: Response object or plain string
 
         Returns:
             Quality score (0-1)
         """
-        score = response.confidence
+        if isinstance(response, Response):
+            score = response.confidence
+            text = response.text
+            is_template = response.is_template
+        else:
+            score = 0.8
+            text = response
+            is_template = False
 
-        # Penalize very short responses
-        if len(response.text) < 5:
+        if len(text) < 5:
             score *= 0.5
 
-        # Penalize very long responses
-        word_count = len(response.text.split())
+        word_count = len(text.split())
         if word_count > self.max_words * 2:
             score *= 0.7
 
-        # Reward template responses
-        if response.is_template:
+        if is_template:
             score *= 1.1
 
         return min(1.0, score)

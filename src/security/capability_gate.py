@@ -185,3 +185,37 @@ class CapabilityGate:
             "confirmed_operations": len(self.confirmed_operations),
             "max_trust_level": TrustLevel.HIGH.value
         }
+
+    # ------------------------------------------------------------------
+    # Convenience aliases used by integration tests
+    # ------------------------------------------------------------------
+
+    def set_trust_level(self, level: int) -> None:
+        """Set trust level by integer value (0-3)."""
+        self.trust_level = TrustLevel(max(0, min(level, TrustLevel.HIGH.value)))
+        logger.info(f"Trust level set to: {self.trust_level.name}")
+
+    def check_permission(self, operation: str) -> bool:
+        """
+        Check if *operation* string is permitted at the current trust level.
+
+        Maps common operation names to Capability enum values.
+        """
+        _op_map = {
+            "voice_interaction": Capability.VOICE_INTERACTION,
+            "information_retrieval": Capability.INFORMATION_RETRIEVAL,
+            "application_launch": Capability.APPLICATION_LAUNCH,
+            "file_reading": Capability.FILE_READING,
+            "file_writing": Capability.FILE_WRITING,
+            "file_deletion": Capability.FILE_DELETION,
+            "system_command": Capability.SYSTEM_COMMANDS,
+            "system_commands": Capability.SYSTEM_COMMANDS,
+            "system_shutdown": Capability.SYSTEM_SHUTDOWN,
+            "system_restart": Capability.SYSTEM_RESTART,
+            "security_settings": Capability.SECURITY_SETTINGS,
+        }
+        capability = _op_map.get(operation.lower())
+        if capability is None:
+            logger.warning(f"Unknown operation for permission check: {operation}")
+            return False
+        return self.can_execute(capability)

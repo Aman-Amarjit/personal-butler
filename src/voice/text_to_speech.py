@@ -93,12 +93,16 @@ class TextToSpeechEngine:
         """
         Synthesize text to audio.
 
+        Uses pyttsx3 say()/runAndWait() for immediate playback.
+        Falls back to file-based approach if direct playback fails.
+
         Args:
             text: Text to synthesize
             emotion_state: Emotional state for prosody
 
         Returns:
-            Audio data or None if failed
+            Audio data bytes (from file fallback) or b"" on direct playback,
+            or None if synthesis failed entirely.
         """
         if not self.engine:
             logger.error("TTS engine not initialized")
@@ -108,38 +112,44 @@ class TextToSpeechEngine:
             self.state = TTSState.SYNTHESIZING
             self._notify_state_change()
 
-            # Check cache
-            cache_key = f"{text}_{emotion_state}"
-            if cache_key in self.audio_cache:
-                logger.debug("Using cached audio")
-                self.state = TTSState.COMPLETE
-                self._notify_state_change()
-                return self.audio_cache[cache_key]
-
             # Apply prosody based on emotion
             prosody = self._get_prosody_for_emotion(emotion_state)
             self._apply_prosody(prosody)
 
-            # Synthesize
-            self.engine.save_to_file(text, "temp_audio.wav")
-            self.engine.runAndWait()
-
-            # Read audio file
+            # Primary: direct playback via say() + runAndWait()
             try:
-                with open("temp_audio.wav", "rb") as f:
-                    audio_data = f.read()
-                
-                # Cache audio
-                self.audio_cache[cache_key] = audio_data
-
+                self.engine.say(text)
+                self.engine.runAndWait()
                 self.state = TTSState.COMPLETE
                 self._notify_state_change()
                 self._trigger_synthesis_complete()
+                return b""  # Playback happened inline; no bytes to return
+            except Exception as direct_err:
+                logger.warning(f"Direct TTS playback failed ({direct_err}), trying file fallback")
 
-                return audio_data
-            except Exception as e:
-                logger.error(f"Error reading audio file: {e}")
+            # Fallback: save to temp file and read back
+            import tempfile, os
+            tmp_path = os.path.join(tempfile.gettempdir(), "panda_tts_temp.wav")
+            self.engine.save_to_file(text, tmp_path)
+            self.engine.runAndWait()
+
+            try:
+                with open(tmp_path, "rb") as f:
+                    audio_data = f.read()
+            except Exception as read_err:
+                logger.error(f"Could not read TTS temp file: {read_err}")
+                self.state = TTSState.ERROR
+                self._notify_state_change()
                 return None
+
+            # Cache and return
+            cache_key = f"{text}_{emotion_state}"
+            self.audio_cache[cache_key] = audio_data
+
+            self.state = TTSState.COMPLETE
+            self._notify_state_change()
+            self._trigger_synthesis_complete()
+            return audio_data
 
         except Exception as e:
             logger.error(f"Error synthesizing speech: {e}")

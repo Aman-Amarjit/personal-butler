@@ -1,1 +1,1 @@
-"""Voice I/O components for JARVIS"""
+"""Voice I/O components for PANDA"""

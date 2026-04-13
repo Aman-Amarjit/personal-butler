@@ -13,7 +13,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-logger = logging.getLogger("jarvis.gaming.input")
+logger = logging.getLogger("panda.gaming.input")
 
 # ── Windows virtual key codes ──────────────────────────────────────────────
 VK = {

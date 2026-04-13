@@ -1,1 +1,1 @@
-"""Core components of JARVIS AI Assistant"""
+"""Core components of PANDA AI Assistant"""

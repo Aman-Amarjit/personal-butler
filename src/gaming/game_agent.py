@@ -14,7 +14,7 @@ from typing import Callable, Dict, List, Optional
 from .input_controller import InputController, MacroStep
 from .game_detector import GameDetector, GameProfile
 
-logger = logging.getLogger("jarvis.gaming.agent")
+logger = logging.getLogger("panda.gaming.agent")
 
 
 @dataclass

@@ -79,13 +79,11 @@ class OllamaIntegration:
         self.current_model = self.models[model_size]
         self.is_running = False
         self.last_error = None
+        self._auto_model_selected = False
 
     def verify_running(self) -> bool:
         """
-        Verify Ollama server is running and accessible.
-
-        Returns:
-            True if Ollama is running, False otherwise
+        Verify Ollama server is running and auto-select an available model.
         """
         try:
             response = requests.get(
@@ -93,7 +91,17 @@ class OllamaIntegration:
                 timeout=self.timeout
             )
             self.is_running = response.status_code == 200
-            logger.info(f"Ollama server status: {'running' if self.is_running else 'not running'}")
+            if self.is_running and not self._auto_model_selected:
+                # Auto-select first available model instead of failing on missing model
+                try:
+                    data = response.json()
+                    available = [m["name"] for m in data.get("models", [])]
+                    if available and self.current_model not in available:
+                        self.current_model = available[0]
+                        logger.info(f"Auto-selected Ollama model: {self.current_model}")
+                    self._auto_model_selected = True
+                except Exception:
+                    pass
             return self.is_running
         except requests.exceptions.RequestException as e:
             self.is_running = False
@@ -236,6 +244,58 @@ class OllamaIntegration:
                 return None
         except Exception as e:
             logger.error(f"Error sending request to Ollama: {e}")
+            self.last_error = str(e)
+            return None
+
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 500
+    ) -> Optional[str]:
+        """
+        Send a chat request to Ollama using the /api/chat endpoint with message history.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys.
+                      Roles: 'system', 'user', 'assistant'
+            temperature: Sampling temperature (0-1)
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            Assistant reply text or None if failed
+        """
+        if not self.is_running:
+            if not self.verify_running():
+                logger.error("Ollama not running")
+                return None
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json={
+                    "model": self.current_model,
+                    "messages": messages,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": max_tokens,
+                    },
+                    "stream": False,
+                },
+                timeout=self.timeout,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                reply = data.get("message", {}).get("content", "").strip()
+                logger.debug(f"Chat response: {reply[:100]}...")
+                return reply
+            else:
+                logger.error(f"Ollama chat request failed: {response.text}")
+                self.last_error = response.text
+                return None
+        except Exception as e:
+            logger.error(f"Error sending chat request to Ollama: {e}")
             self.last_error = str(e)
             return None
 
